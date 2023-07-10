@@ -13,14 +13,18 @@ use mailbox::Mailbox;
 pub mod packet;
 use packet::Packet;
 
+
 use caliptra_common::{cprintln, FirmwareHandoffTable};
-use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault, Ecc384};
+use caliptra_drivers::{CaliptraError, CaliptraResult, DataVault, Ecc384, KeyVault};
+use caliptra_fips::{FipsManagement, FipsModuleApi, FipsEnv};
 use caliptra_registers::{
     dv::DvReg,
     ecc::EccReg,
     mbox::{enums::MboxStatusE, MboxCsr},
     sha512_acc::Sha512AccCsr,
+    kv::KvReg,
 };
+
 use zerocopy::{AsBytes, FromBytes};
 
 #[derive(PartialEq, Eq)]
@@ -53,6 +57,7 @@ pub struct Drivers<'a> {
     pub sha_acc: Sha512AccCsr,
     pub ecdsa: Ecc384,
     pub data_vault: DataVault,
+    pub key_vault: KeyVault,
     pub fht: &'a mut FirmwareHandoffTable,
 }
 impl<'a> Drivers<'a> {
@@ -67,6 +72,7 @@ impl<'a> Drivers<'a> {
             sha_acc: Sha512AccCsr::new(),
             ecdsa: Ecc384::new(EccReg::new()),
             data_vault: DataVault::new(DvReg::new()),
+            key_vault: KeyVault::new(KvReg::new()),           
             fht,
         }
     }
@@ -100,6 +106,49 @@ fn wait_for_cmd(_mbox: &mut Mailbox) {
     //core::arch::asm!("wfi");
     //}
 }
+
+#[derive(Default)]
+struct FipsModule;
+
+impl FipsManagement for FipsModule {
+    fn status(&self, _env : &FipsEnv) -> CaliptraResult<MboxStatusE> {
+        cprintln!("[rt] FIPS status");
+        Ok(MboxStatusE::CmdComplete)
+    }
+
+    fn self_test(&self, _env : &FipsEnv) -> CaliptraResult<MboxStatusE> {
+        cprintln!("[rt] FIPS self test");
+        Ok(MboxStatusE::CmdComplete)
+    }
+
+    fn shutdown(&self, _env: &FipsEnv) -> CaliptraResult<MboxStatusE> {
+        cprintln!("[rt] FIPS shutdown");
+        Ok(MboxStatusE::CmdComplete)
+    }
+}
+
+impl FipsModule {
+    pub fn handle_command(
+        &self,
+        command_id: u32,
+        _payload: &[u8],
+        drivers: &mut Drivers,
+    ) -> CaliptraResult<MboxStatusE> {
+        let env = caliptra_fips::FipsEnv {
+            key_vault: &mut drivers.key_vault,
+        };
+        match command_id.try_into() {
+            Ok(api) => match api {
+                FipsModuleApi::STATUS => self.status(&env),
+                FipsModuleApi::SELF_TEST => self.self_test(&env),
+                FipsModuleApi::SHUTDOWN => self.shutdown(&env),
+                _ => Err(CaliptraError::FIPS_COMMAND_NOT_IMPLEMENTED),
+            },
+            Err(_) => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        }
+    }
+}
+
 
 fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
     let packet = Packet::copy_from_mbox(drivers)?;
@@ -143,11 +192,16 @@ fn handle_command(drivers: &mut Drivers) -> CaliptraResult<MboxStatusE> {
             )?;
             Ok(MboxStatusE::DataReady)
         }
-        _ => Err(CaliptraError::RUNTIME_UNIMPLEMENTED_COMMAND),
+        _ => {
+            FipsModule::default().handle_command(packet.cmd, cmd_bytes, drivers)
+        }
     }
 }
 
 pub fn handle_mailbox_commands(drivers: &mut Drivers) {
+
+    // Create a CommandRegistry instance
+
     loop {
         wait_for_cmd(&mut drivers.mbox);
 

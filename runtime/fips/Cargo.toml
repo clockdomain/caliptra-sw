@@ -1,0 +1,15 @@
+[package]
+name = "caliptra-fips"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+caliptra-drivers = { version = "0.1.0", path = "../../drivers" }
+caliptra-error = { version = "0.1.0", path = "../../error", default-features = false }
+caliptra-registers = { version = "0.1.0", path = "../../registers" }
+caliptra_common = { path = "../../common", default-features = false }
+
+
+

@@ -281,6 +281,16 @@ name = "caliptra-file-header-fix"
 version = "0.1.0"
 
 [[package]]
+name = "caliptra-fips"
+version = "0.1.0"
+dependencies = [
+ "caliptra-drivers",
+ "caliptra-error",
+ "caliptra-registers",
+ "caliptra_common",
+]
+
+[[package]]
 name = "caliptra-fmc"
 version = "0.1.0"
 dependencies = [
@@ -531,6 +541,7 @@ dependencies = [
  "caliptra-builder",
  "caliptra-cpu",
  "caliptra-drivers",
+ "caliptra-fips",
  "caliptra-hw-model",
  "caliptra-image-elf",
  "caliptra-image-fake-keys",
