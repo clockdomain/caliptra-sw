@@ -12,6 +12,7 @@ pub mod checksum;
 pub mod fuse;
 pub mod helpers;
 pub mod pcr;
+pub mod registry;
 
 ///merge imports
 pub use hand_off::{
@@ -24,3 +25,4 @@ pub use fuse::{FuseLogEntry, FuseLogEntryId};
 pub use pcr::{PcrLogEntry, PcrLogEntryId};
 pub use printer::HexBytes;
 pub use printer::MutablePrinter;
+pub use registry::{CommandHandler, CommandRegistry};
