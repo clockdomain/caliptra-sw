@@ -17,6 +17,7 @@ members = [
   "ci-tools/file-header-fix",
   "ci-tools/size-history",
   "common",
+  "common/fips",
   "cpu",
   "drivers",
   "drivers/test-fw",

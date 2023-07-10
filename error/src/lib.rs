@@ -368,6 +368,10 @@ impl CaliptraError {
 
     pub const ROM_KAT_LMS_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90070001);
     pub const ROM_KAT_LMS_DIGEST_MISMATCH: CaliptraError = CaliptraError::new_const(0x90070002);
+
+    pub const FIPS_COMMAND_NOT_IMPLEMENTED: CaliptraError = CaliptraError::new_const(0xA0000001);
+    pub const COMMAND_REGISTRY_COMMAND_HANDLER_REGISTRATION_FAILED: CaliptraError =
+        CaliptraError::new_const(0xb0000001);
 }
 
 impl From<core::num::NonZeroU32> for crate::CaliptraError {
