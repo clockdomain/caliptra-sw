@@ -96,13 +96,12 @@ fn test_verify_from_iccm() {
 
     hw.mailbox_execute(0x4650_4C54, &[]).unwrap();
 
-    hw.step_until_boot_status(KatStarted.into(), true);
-    hw.step_until_boot_status(KatComplete.into(), true);
-    hw.step_until_boot_status(UpdateResetStarted.into(), false);
+    hw.step_until_boot_status(FipsSelfTestStarted.into(), true);
+    hw.step_until_boot_status(FipsSelfTestComplete.into(), true);
 
     assert_eq!(
         hw.soc_ifc().cptra_boot_status().read(),
-        UpdateResetStarted.into()
+        FipsSelfTestComplete.into()
     );
 }
 

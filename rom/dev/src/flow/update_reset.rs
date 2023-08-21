@@ -34,6 +34,7 @@ pub struct UpdateResetFlow {}
 
 impl UpdateResetFlow {
     const MBOX_DOWNLOAD_FIRMWARE_CMD_ID: u32 = 0x46574C44;
+    const FIPS_SELF_TEST_CMD_ID: u32 = 0x4650_4C54;
 
     /// Execute update reset flow
     ///
@@ -50,20 +51,20 @@ impl UpdateResetFlow {
             return Err(CaliptraError::ROM_UPDATE_RESET_FLOW_MAILBOX_ACCESS_FAILURE);
         };
 
+        let mut venv = RomImageVerificationEnv {
+            sha256: &mut env.sha256,
+            sha384: &mut env.sha384,
+            sha384_acc: &mut env.sha384_acc,
+            soc_ifc: &mut env.soc_ifc,
+            ecc384: &mut env.ecc384,
+            data_vault: &mut env.data_vault,
+            pcr_bank: &mut env.pcr_bank,
+        };
+
         match recv_txn.cmd() {
             Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID => {
                 let manifest = Self::load_manifest(&mut recv_txn)?;
                 report_boot_status(UpdateResetLoadManifestComplete.into());
-
-                let mut venv = RomImageVerificationEnv {
-                    sha256: &mut env.sha256,
-                    sha384: &mut env.sha384,
-                    sha384_acc: &mut env.sha384_acc,
-                    soc_ifc: &mut env.soc_ifc,
-                    ecc384: &mut env.ecc384,
-                    data_vault: &mut env.data_vault,
-                    pcr_bank: &mut env.pcr_bank,
-                };
 
                 let info = Self::verify_image(&mut venv, &manifest, recv_txn.dlen());
                 let info = okref(&info)?;
@@ -99,9 +100,18 @@ impl UpdateResetFlow {
 
                 Ok(None)
             }
-            0x4650_4C54 => {
+            Self::FIPS_SELF_TEST_CMD_ID => {
                 cprintln!("Fips self test  0x{:08x} received", recv_txn.cmd());
-                ImageManifestVerifier::verify()?;
+                report_boot_status(FipsSelfTestStarted.into());
+                let manifest = ImageManifestLoader::load_from_iccm()?;
+
+                let info = Self::verify_image(
+                    &mut venv,
+                    &manifest,
+                    caliptra_common::memory_layout::MBOX_SIZE,
+                );
+                let info = okref(&info)?;
+
                 //Call the complete here to reset the execute bit
                 recv_txn.complete(true)?;
 
@@ -109,6 +119,7 @@ impl UpdateResetFlow {
                 // has been successfully verified in ICCM.
                 drop(recv_txn);
 
+                report_boot_status(FipsSelfTestComplete.into());
                 Ok(None)
             }
             _ => {
@@ -235,19 +246,14 @@ impl UpdateResetFlow {
     }
 }
 
-struct ImageManifestVerifier;
-
-impl ImageManifestVerifier {
-    fn load_from_iccm() -> CaliptraResult<ImageManifest> {
+mod ImageManifestLoader {
+    use super::*;
+    pub fn load_from_iccm() -> CaliptraResult<ImageManifest> {
         let manifest_slice = unsafe {
             let ptr = MAN1_ORG as *mut u32;
             core::slice::from_raw_parts_mut(ptr, core::mem::size_of::<ImageManifest>() / 4)
         };
         ImageManifest::read_from(manifest_slice.as_bytes())
             .ok_or(CaliptraError::ROM_UPDATE_RESET_FLOW_MANIFEST_READ_FAILURE)
-    }
-    pub fn verify() -> CaliptraResult<()> {
-        let _ = Self::load_from_iccm()?;
-        Ok(())
     }
 }
