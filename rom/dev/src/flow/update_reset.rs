@@ -110,7 +110,7 @@ impl UpdateResetFlow {
                     &manifest,
                     caliptra_common::memory_layout::MBOX_SIZE,
                 );
-                let info = okref(&info)?;
+                let _info = okref(&info)?;
 
                 //Call the complete here to reset the execute bit
                 recv_txn.complete(true)?;
