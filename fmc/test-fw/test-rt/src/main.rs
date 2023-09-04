@@ -50,8 +50,9 @@ pub extern "C" fn entry_point() -> ! {
             .erase_pcr(caliptra_common::RT_FW_JOURNEY_PCR)
             .is_err());
 
-        process_mailbox_commands();
-
+        if cfg!(feature = "interactive_test_fmc") {
+            interactive_test::process_mailbox_commands();
+        }
         caliptra_drivers::ExitCtrl::exit(0)
     } else {
         cprintln!("FHT not loaded");

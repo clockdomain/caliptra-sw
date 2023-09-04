@@ -43,7 +43,7 @@ pub extern "C" fn entry_point() -> ! {
     cprintln!("{}", BANNER);
 
     if let Some(mut hand_off) = HandOff::from_previous() {
-        let mut env = match unsafe { fmc_env::FmcEnv::new_from_registers() } {
+        let mut env = match unsafe { fmc_env::FmcEnv::new_from_registers(&hand_off) } {
             Ok(env) => env,
             Err(e) => report_error(e.into()),
         };

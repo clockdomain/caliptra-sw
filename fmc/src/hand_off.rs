@@ -79,6 +79,10 @@ impl HandOff {
         }
         None
     }
+    /// Retrieve PCR log index
+    pub fn pcr_log_index(&self) -> usize {
+        self.fht.pcr_log_index as usize
+    }
 
     /// Retrieve FMC CDI
     pub fn fmc_cdi(&self) -> KeyId {

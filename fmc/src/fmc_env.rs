@@ -25,6 +25,8 @@ use caliptra_registers::{
     soc_ifc::SocIfcReg, soc_ifc_trng::SocIfcTrngReg,
 };
 
+use crate::hand_off::HandOff;
+
 /// Hardware Context
 pub struct FmcEnv {
     // SHA1 Engine
@@ -72,13 +74,16 @@ impl FmcEnv {
     /// drivers.
     ///
     ///
-    pub unsafe fn new_from_registers() -> CaliptraResult<Self> {
+    pub unsafe fn new_from_registers(hand_off: &HandOff) -> CaliptraResult<Self> {
         let trng = Trng::new(
             CsrngReg::new(),
             EntropySrcReg::new(),
             SocIfcTrngReg::new(),
             &SocIfcReg::new(),
         )?;
+
+        let mut pcr_bank = PcrBank::new(PvReg::new());
+        pcr_bank.log_index = hand_off.pcr_log_index();
 
         Ok(Self {
             sha1: Sha1::default(),
@@ -91,7 +96,7 @@ impl FmcEnv {
             data_vault: DataVault::new(DvReg::new()),
             soc_ifc: SocIfc::new(SocIfcReg::new()),
             mbox: Mailbox::new(MboxCsr::new()),
-            pcr_bank: PcrBank::new(PvReg::new()),
+            pcr_bank,
             trng,
         })
     }

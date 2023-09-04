@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 use caliptra_builder::{FwId, ImageOptions, FMC_WITH_UART, ROM_WITH_UART};
+use caliptra_common::RomBootStatus;
 use caliptra_drivers::{
     pcr_log::{PcrLogEntry, PcrLogEntryId},
     FirmwareHandoffTable, PcrId,
@@ -7,6 +8,12 @@ use caliptra_drivers::{
 use caliptra_hw_model::{BootParams, HwModel, InitParams};
 
 use zerocopy::{AsBytes, FromBytes};
+
+const TEST_CMD_READ_PCR_LOG: u32 = 0x1000_0000;
+const TEST_CMD_READ_FHT: u32 = 0x1000_0001;
+const TEST_CMD_TRIGGER_UPDATE_RESET: u32 = 0x1000_0002;
+const TEST_CMD_READ_PCRS: u32 = 0x1000_0003;
+const TEST_CMD_TRY_TO_RESET_PCRS: u32 = 0x1000_0004;
 
 const RT_ALIAS_MEASUREMENT_COMPLETE: u32 = 0x400;
 const RT_ALIAS_DERIVED_CDI_COMPLETE: u32 = 0x401;
@@ -54,27 +61,6 @@ fn test_boot_status_reporting() {
     hw.step_until_boot_status(RT_ALIAS_SUBJ_KEY_ID_GENERATION_COMPLETE, true);
     hw.step_until_boot_status(RT_ALIAS_CERT_SIG_GENERATION_COMPLETE, true);
     hw.step_until_boot_status(RT_ALIAS_DERIVATION_COMPLETE, true);
-}
-
-// Checks entries for both PCR0 and PCR1. Skips checking `data` if empty.
-fn check_pcr_log_entry(
-    pcr_entry_arr: &[u8],
-    pcr_entry_index: usize,
-    entry_id: PcrLogEntryId,
-    data: &[u8],
-) {
-    let offset = pcr_entry_index * PCR_ENTRY_SIZE;
-    let entry = PcrLogEntry::read_from_prefix(pcr_entry_arr[offset..].as_bytes()).unwrap();
-
-    assert_eq!(entry.id, entry_id as u16);
-    assert_eq!(
-        entry.pcr_ids,
-        (1 << PcrId::PcrId0 as u8) | (1 << PcrId::PcrId1 as u8)
-    );
-
-    if !data.is_empty() {
-        assert_eq!(entry.measured_data(), data);
-    }
 }
 
 #[test]
@@ -142,7 +128,106 @@ fn test_pcr_log() {
     })
     .unwrap();
 
+    let result = hw.mailbox_execute(0x1000_0001, &[]);
+    assert!(result.is_ok());
+
+    let data = result.unwrap().unwrap();
+    let fht = FirmwareHandoffTable::read_from_prefix(data.as_bytes()).unwrap();
+
     let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
 
-    check_pcr_log_entry(&pcr_entry_arr, 12, PcrLogEntryId::RtTci, &[]);
+    // Check PCR entry for RtTci.
+    let mut pcr_log_entry_offset = (fht.pcr_log_index as usize) * PCR_ENTRY_SIZE;
+
+    let pcr_log_entry =
+        PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
+    assert_eq!(pcr_log_entry.id, PcrLogEntryId::RtTci as u16);
+    assert_eq!(
+        pcr_log_entry.pcr_ids,
+        1 << (caliptra_common::RT_FW_CURRENT_PCR as u8)
+    );
+
+    // Check PCR entry for Manifest digest.
+    pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
+    let pcr_log_entry =
+        PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
+    assert_eq!(pcr_log_entry.id, PcrLogEntryId::FwImageManifest as u16);
+    assert_eq!(
+        pcr_log_entry.pcr_ids,
+        1 << (caliptra_common::RT_FW_CURRENT_PCR as u8)
+    );
+
+    // Check PCR entry for RtTci.
+    pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
+
+    let pcr_log_entry =
+        PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
+    assert_eq!(pcr_log_entry.id, PcrLogEntryId::RtTci as u16);
+    assert_eq!(
+        pcr_log_entry.pcr_ids,
+        1 << (caliptra_common::RT_FW_JOURNEY_PCR as u8)
+    );
+
+    // Check PCR entry for Manifest digest.
+    pcr_log_entry_offset += PCR_ENTRY_SIZE;
+    let pcr_log_entry =
+        PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
+    assert_eq!(pcr_log_entry.id, PcrLogEntryId::FwImageManifest as u16);
+    assert_eq!(
+        pcr_log_entry.pcr_ids,
+        1 << (caliptra_common::RT_FW_JOURNEY_PCR as u8)
+    );
+
+    hw.soc_ifc()
+        .internal_fw_update_reset()
+        .write(|w| w.core_rst(true));
+
+    assert!(hw.upload_firmware(&image.to_bytes().unwrap()).is_ok());
+
+    hw.step_until_boot_status(RT_ALIAS_DERIVATION_COMPLETE, true);
+
+    let pcr_entry_arr = hw.mailbox_execute(0x1000_0000, &[]).unwrap().unwrap();
+
+    // Check PCR entry for RtTci.
+    let mut pcr_log_entry_offset =
+        (fht.pcr_log_index as usize) * core::mem::size_of::<PcrLogEntry>();
+
+    let pcr_log_entry =
+        PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
+    assert_eq!(pcr_log_entry.id, PcrLogEntryId::RtTci as u16);
+    assert_eq!(
+        pcr_log_entry.pcr_ids,
+        1 << (caliptra_common::RT_FW_CURRENT_PCR as u8)
+    );
+
+    // Check PCR entry for Manifest digest.
+    pcr_log_entry_offset += PCR_ENTRY_SIZE;
+    let pcr_log_entry =
+        PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
+    assert_eq!(pcr_log_entry.id, PcrLogEntryId::FwImageManifest as u16);
+    assert_eq!(
+        pcr_log_entry.pcr_ids,
+        1 << (caliptra_common::RT_FW_CURRENT_PCR as u8)
+    );
+
+    // Check PCR entry for RtTci.
+    pcr_log_entry_offset += core::mem::size_of::<PcrLogEntry>();
+
+    let pcr_log_entry =
+        PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
+    assert_eq!(pcr_log_entry.id, PcrLogEntryId::RtTci as u16);
+    assert_eq!(
+        pcr_log_entry.pcr_ids,
+        1 << (caliptra_common::RT_FW_JOURNEY_PCR as u8)
+    );
+
+    // Check PCR entry for Manifest digest.
+    pcr_log_entry_offset += PCR_ENTRY_SIZE;
+    let pcr_log_entry =
+        PcrLogEntry::read_from_prefix(pcr_entry_arr[pcr_log_entry_offset..].as_bytes()).unwrap();
+    assert_eq!(pcr_log_entry.id, PcrLogEntryId::FwImageManifest as u16);
+    assert_eq!(
+        pcr_log_entry.pcr_ids,
+        1 << (caliptra_common::RT_FW_JOURNEY_PCR as u8)
+    );
 }

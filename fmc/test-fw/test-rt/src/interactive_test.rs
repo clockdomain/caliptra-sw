@@ -12,23 +12,30 @@ use ureg::RealMmioMut;
 use core::convert::TryFrom;
 use core::convert::TryInto;
 use zerocopy::{AsBytes, FromBytes};
+
+pub const TEST_CMD_READ_PCR_LOG: u32 = 0x1000_0000;
+pub const TEST_CMD_READ_FHT: u32 = 0x1000_0001;
+pub const TEST_CMD_TRIGGER_UPDATE_RESET: u32 = 0x1000_0002;
+pub const TEST_CMD_READ_PCRS: u32 = 0x1000_0003;
+pub const TEST_CMD_TRY_TO_RESET_PCRS: u32 = 0x1000_0004;
+
 fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
     let cmd = mbox.cmd().read();
     cprintln!("[fmc-test-harness] Received command: 0x{:08X}", cmd);
     match cmd {
-        0x1000_0000 => {
+        TEST_CMD_READ_PCR_LOG => {
             read_pcr_log(mbox);
         }
-        0x1000_0001 => {
+        TEST_CMD_READ_FHT => {
             read_fht(mbox);
         }
-        0x1000_0002 => {
+        TEST_CMD_TRIGGER_UPDATE_RESET => {
             trigger_update_reset(mbox);
         }
-        0x1000_0003 => {
+        TEST_CMD_READ_PCRS => {
             read_pcrs(mbox);
         }
-        0x1000_0004 => {
+        TEST_CMD_TRY_TO_RESET_PCRS => {
             try_to_reset_pcrs(mbox);
         }
         _ => {}
@@ -45,9 +52,6 @@ pub fn process_mailbox_commands() {
             process_mailbox_command(&mbox);
         }
     }
-
-    #[cfg(not(feature = "interactive_test_fmc"))]
-    process_mailbox_command(&mbox);
 }
 
 fn swap_word_bytes_inplace(words: &mut [u32]) {
