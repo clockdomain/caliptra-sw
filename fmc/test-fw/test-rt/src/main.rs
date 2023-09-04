@@ -23,9 +23,6 @@ use caliptra_drivers::{report_fw_error_non_fatal, Mailbox, PcrBank};
 use caliptra_registers::pv::PvReg;
 use core::hint::black_box;
 
-#[cfg(feature = "interactive_test_fmc")]
-mod interactive_test;
-
 #[cfg(feature = "std")]
 pub fn main() {}
 

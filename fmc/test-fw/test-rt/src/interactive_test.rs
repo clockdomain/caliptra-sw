@@ -39,6 +39,7 @@ pub fn process_mailbox_commands() {
     let mut mbox = unsafe { caliptra_registers::mbox::MboxCsr::new() };
     let mbox = mbox.regs_mut();
 
+    cprintln!("Waiting for mailbox commands...");
     loop {
         if mbox.status().read().mbox_fsm_ps().mbox_execute_uc() {
             process_mailbox_command(&mbox);

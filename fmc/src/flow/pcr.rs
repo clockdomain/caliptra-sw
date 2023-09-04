@@ -24,6 +24,7 @@ use crate::flow::tci::Tci;
 use crate::fmc_env::FmcEnv;
 use crate::HandOff;
 use caliptra_drivers::{
+    cprintln,
     memory_layout::{PCR_LOG_ORG, PCR_LOG_SIZE},
     okref,
     pcr_log::{PcrLogEntry, PcrLogEntryId},
@@ -108,6 +109,7 @@ pub fn log_pcr(
     }
 
     // Create a PCR log entry
+    cprintln!("pcr_entry_id: {:?}", pcr_entry_id as u16);
     let mut pcr_log_entry = PcrLogEntry {
         id: pcr_entry_id as u16,
         pcr_ids,
