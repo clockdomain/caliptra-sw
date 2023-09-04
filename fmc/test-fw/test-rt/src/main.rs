@@ -13,12 +13,18 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
+mod interactive_test;
+
+use interactive_test::process_mailbox_commands;
 
 use caliptra_common::cprintln;
 use caliptra_cpu::TrapRecord;
 use caliptra_drivers::{report_fw_error_non_fatal, Mailbox, PcrBank};
 use caliptra_registers::pv::PvReg;
 use core::hint::black_box;
+
+#[cfg(feature = "interactive_test_fmc")]
+mod interactive_test;
 
 #[cfg(feature = "std")]
 pub fn main() {}
@@ -46,6 +52,9 @@ pub extern "C" fn entry_point() -> ! {
         assert!(pcr_bank
             .erase_pcr(caliptra_common::RT_FW_JOURNEY_PCR)
             .is_err());
+
+        process_mailbox_commands();
+
         caliptra_drivers::ExitCtrl::exit(0)
     } else {
         cprintln!("FHT not loaded");

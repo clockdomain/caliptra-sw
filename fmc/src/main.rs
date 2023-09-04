@@ -13,6 +13,7 @@ Abstract:
 --*/
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(feature = "std"), no_main)]
+
 use core::hint::black_box;
 
 use caliptra_common::cprintln;
@@ -56,6 +57,7 @@ pub extern "C" fn entry_point() -> ! {
             Err(e) => report_error(e.into()),
         }
     }
+
     caliptra_drivers::ExitCtrl::exit(0xff)
 }
 
