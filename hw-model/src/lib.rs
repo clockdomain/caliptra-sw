@@ -1,5 +1,6 @@
 // Licensed under the Apache-2.0 license
 
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::{
     error::Error,
@@ -109,6 +110,8 @@ impl TrngMode {
     }
 }
 
+pub struct CodeCoverageParams(usize, PathBuf);
+
 pub struct InitParams<'a> {
     // The contents of the boot ROM
     pub rom: &'a [u8],
@@ -136,6 +139,8 @@ pub struct InitParams<'a> {
 
     // When None, use the itrng compile-time feature to decide which mode to use.
     pub trng_mode: Option<TrngMode>,
+
+    pub code_coverage_params: Option<CodeCoverageParams>,
 }
 
 impl<'a> Default for InitParams<'a> {
@@ -164,6 +169,7 @@ impl<'a> Default for InitParams<'a> {
             itrng_nibbles,
             etrng_responses,
             trng_mode: Default::default(),
+            code_coverage_params: Default::default(),
         }
     }
 }
@@ -792,6 +798,10 @@ pub trait HwModel {
             req: MailboxRequest { cmd, data },
         }))
     }
+
+    fn count_instructions_executed(&mut self) -> usize {
+        0
+    }
 }
 
 #[cfg(test)]
@@ -911,6 +921,13 @@ mod tests {
         })
         .unwrap();
         model.step_until_output("hi").unwrap();
+
+        // Report coverage as a percentage.
+        println!(
+            "Total instructions: {}, Coverage: {}%",
+            gen_image_hi().len(),
+            model.count_instructions_executed() as f64 / gen_image_hi().len() as f64 * 100.0
+        );
     }
 
     #[test]
