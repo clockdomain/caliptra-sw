@@ -361,4 +361,18 @@ fn smoke_test() {
     );
 
     // TODO: Validate the rest of the fmc_alias certificate fields
+
+    // print coverage as a percentage.
+    println!(
+        "Total instructions = {}, Executed instruction count {}, Code coverage: {:.2}%",
+        rom.len()
+            + image.manifest.fmc.image_size() as usize
+            + image.manifest.runtime.image_size() as usize,
+        hw.count_instructions_executed(),
+        hw.count_instructions_executed() as f32
+            / (rom.len()
+                + image.manifest.fmc.image_size() as usize
+                + image.manifest.runtime.image_size() as usize) as f32
+            * 100.0
+    );
 }

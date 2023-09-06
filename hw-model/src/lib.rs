@@ -792,6 +792,10 @@ pub trait HwModel {
             req: MailboxRequest { cmd, data },
         }))
     }
+
+    fn count_instructions_executed(&mut self) -> usize {
+        0
+    }
 }
 
 #[cfg(test)]
@@ -911,6 +915,13 @@ mod tests {
         })
         .unwrap();
         model.step_until_output("hi").unwrap();
+
+        // Report coverage as a percentage.
+        println!(
+            "Total instructions: {}, Coverage: {}%",
+            gen_image_hi().len(),
+            model.count_instructions_executed() as f64 / gen_image_hi().len() as f64 * 100.0
+        );
     }
 
     #[test]
