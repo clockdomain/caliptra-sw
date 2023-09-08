@@ -197,6 +197,6 @@ impl crate::HwModel for ModelEmulated {
     }
 
     fn count_instructions_executed(&mut self) -> usize {
-        self.code_coverage.count_executed_instructions()
+        self.code_coverage.count_executed()
     }
 }
