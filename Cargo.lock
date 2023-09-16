@@ -918,9 +918,6 @@ dependencies = [
 [[package]]
 name = "crypto"
 version = "0.1.0"
-dependencies = [
- "arrayvec",
-]
 
 [[package]]
 name = "crypto-bigint"
@@ -1075,7 +1072,6 @@ dependencies = [
 name = "dpe"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.4.0",
  "crypto",
  "platform",
  "zerocopy",

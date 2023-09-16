@@ -29,6 +29,7 @@ pub struct ElfExecutable {
     load_addr: u32,
     entry_point: u32,
     content: Vec<u8>,
+    instruction_count: usize,
 }
 
 fn load_into_image(
@@ -60,6 +61,27 @@ impl ElfExecutable {
         let file_data = std::fs::read(path).with_context(|| "Failed to read file")?;
         ElfExecutable::new(&file_data, version, svn, min_svn, rev)
     }
+
+    fn get_instr_count(text_section: &[u8]) -> usize {
+        let mut index = 0_usize;
+        let mut instr_count = 0_usize;
+
+        while index < text_section.len() {
+            let instruction = &text_section[index..index + 2];
+            let instruction = u16::from_le_bytes([instruction[0], instruction[1]]);
+
+            match instruction & 0b11 {
+                0 | 1 | 2 => {
+                    index += 2;
+                }
+                _ => {
+                    index += 4;
+                }
+            }
+            instr_count += 1;
+        }
+        instr_count
+    }
     /// Create new instance of `ElfExecutable`.
     pub fn new(
         elf_bytes: &[u8],
@@ -77,6 +99,7 @@ impl ElfExecutable {
         // rather than sections, similar to objcopy.
         let (load_addr, text) = Self::read_section(&elf_file, ".text", true)?;
         load_into_image(&mut content, load_addr, load_addr, text)?;
+        let instruction_count = Self::get_instr_count(text);
 
         let (rodata_addr, rodata) = Self::read_section(&elf_file, ".rodata", false)?;
         load_into_image(&mut content, load_addr, rodata_addr, rodata)?;
@@ -100,6 +123,7 @@ impl ElfExecutable {
             load_addr,
             entry_point,
             content,
+            instruction_count,
         })
     }
 
