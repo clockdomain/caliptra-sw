@@ -13,7 +13,7 @@ const BASE_FWID: FwId = FwId {
 };
 
 fn run_fw_elf(elf: &[u8]) -> DefaultHwModel {
-    let rom = caliptra_builder::elf2rom(elf).unwrap();
+    let (rom, _) = caliptra_builder::elf2rom(elf).unwrap();
     let model = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,

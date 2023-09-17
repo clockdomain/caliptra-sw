@@ -4,6 +4,10 @@ pub mod crypto;
 pub mod derive;
 pub mod x509;
 
+pub mod trace_parser;
+
+pub mod text_section_parser;
+
 pub fn swap_word_bytes(words: &[u32]) -> Vec<u32> {
     words.iter().map(|word| word.swap_bytes()).collect()
 }

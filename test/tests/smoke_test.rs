@@ -28,7 +28,7 @@ fn assert_output_contains(haystack: &str, needle: &str) {
 #[test]
 fn retrieve_csr_test() {
     const GENERATE_IDEVID_CSR: u32 = 1;
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let (rom, _) = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -126,7 +126,11 @@ fn smoke_test() {
         .set_device_lifecycle(DeviceLifecycle::Production);
     let idevid_pubkey = get_idevid_pubkey();
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let (rom, rom_text_section) = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+
+    assert!(rom_text_section.len() != 0);
+    let instr_pcs = caliptra_test::text_section_parser::get_instr_pcs(&rom_text_section);
+
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,
@@ -149,6 +153,9 @@ fn smoke_test() {
         lms_verify: true,
         ..Default::default()
     };
+    let trace_path = "/tmp/caliptra_trace.txt";
+    std::env::set_var("CPTRA_TRACE_PATH", trace_path);
+
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
             rom: &rom,
@@ -374,6 +381,19 @@ fn smoke_test() {
         "fmc_alias cert failed to validate with ldev pubkey"
     );
 
+    let unique_executed_pcs = caliptra_test::trace_parser::parse_trace_file(trace_path);
+
+    // Count the nunmer of instructions executed
+    let mut instr_count = 0;
+    for pc in unique_executed_pcs.iter() {
+        if instr_pcs.contains(pc) {
+            instr_count += 1;
+        }
+    }
+    let coverage = instr_count as f32 / instr_pcs.len() as f32;
+    // print coverage
+    println!("coverage: {:.2}%", coverage * 100.0);
+
     // TODO: Validate the rest of the fmc_alias certificate fields
 }
 
@@ -494,7 +514,7 @@ fn fips_cmd_test_rom() {
         .set_debug_locked(true)
         .set_device_lifecycle(DeviceLifecycle::Production);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let (rom, _) = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
 
     let mut hw = caliptra_hw_model::new(BootParams {
         init_params: InitParams {
@@ -528,7 +548,7 @@ fn fips_cmd_test_rt() {
         .set_debug_locked(false)
         .set_device_lifecycle(DeviceLifecycle::Unprovisioned);
 
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let (rom, _) = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
     let image = caliptra_builder::build_and_sign_image(
         &FMC_WITH_UART,
         &APP_WITH_UART,

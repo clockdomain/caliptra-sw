@@ -206,14 +206,16 @@ pub fn build_firmware_elf(id: &FwId<'static>) -> io::Result<Arc<Vec<u8>>> {
     Ok(result)
 }
 
-pub fn build_firmware_rom(id: &FwId<'static>) -> io::Result<Vec<u8>> {
+pub fn build_firmware_rom(id: &FwId<'static>) -> io::Result<(Vec<u8>, Vec<u8>)> {
     let elf_bytes = build_firmware_elf(id)?;
     elf2rom(&elf_bytes)
 }
 
-pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
+pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<(Vec<u8>, Vec<u8>)> {
     let mut result = vec![0u8; 0xC000];
     let elf = elf::ElfBytes::<LittleEndian>::minimal_parse(elf_bytes).map_err(other_err)?;
+
+    let mut text_section_bytes = Vec::new();
 
     let Some(segments) = elf.segments() else {
         return Err(other_err("ELF file has no segments"))
@@ -237,6 +239,11 @@ pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
                  of 0x0000..0x{:04x}", mem_offset + len, result.len())));
         };
         dest_bytes.copy_from_slice(src_bytes);
+
+        // Check if this segment is the text section and store its bytes
+        if segment.p_flags & elf::abi::PF_X != 0 {
+            text_section_bytes.extend_from_slice(src_bytes);
+        }
     }
 
     let symbols = elf_symbols(elf_bytes)?;
@@ -254,7 +261,7 @@ pub fn elf2rom(elf_bytes: &[u8]) -> io::Result<Vec<u8>> {
         rom_info_dest.copy_from_slice(rom_info.as_bytes());
     }
 
-    Ok(result)
+    Ok((result, text_section_bytes))
 }
 
 pub fn elf_size(elf_bytes: &[u8]) -> io::Result<u64> {
@@ -376,7 +383,7 @@ mod test {
 
     #[test]
     fn test_elf2rom_golden() {
-        let rom_bytes = elf2rom(include_bytes!("testdata/example.elf")).unwrap();
+        let (rom_bytes, _) = elf2rom(include_bytes!("testdata/example.elf")).unwrap();
         assert_eq!(&rom_bytes, include_bytes!("testdata/example.rom.golden"));
     }
 
