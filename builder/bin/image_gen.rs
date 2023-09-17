@@ -15,7 +15,7 @@ fn main() {
     let fw_path = args.get_one::<PathBuf>("fw").unwrap();
 
     // Generate ROM Image
-    let rom = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
+    let (rom, _) = caliptra_builder::build_firmware_rom(&ROM_WITH_UART).unwrap();
 
     // Generate Image Bundle
     let image = caliptra_builder::build_and_sign_image(
