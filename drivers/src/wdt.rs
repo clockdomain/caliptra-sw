@@ -13,7 +13,7 @@ Abstract:
 
 --*/
 
-use caliptra_drivers::SocIfc;
+use crate::SocIfc;
 
 use crate::cprintln;
 
