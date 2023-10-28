@@ -47,13 +47,17 @@ pub fn get_entry_from_path(path: &PathBuf) -> CoverageMapEntry {
     CoverageMapEntry(tag, bitmap)
 }
 
-pub fn dump_emu_coverage_to_file(tag: u64, bitmap: &BitVec) -> std::io::Result<()> {
+pub fn dump_emu_coverage_to_file(
+    coverage_path: &str,
+    tag: u64,
+    bitmap: &BitVec,
+) -> std::io::Result<()> {
     let mut filename = format!("CovData{}", hex::encode(rand::random::<[u8; 16]>()));
     filename.push_str(&'-'.to_string());
     filename.push_str(&tag.to_string());
     filename.push_str(".bitvec");
 
-    let path = std::path::Path::new("/tmp").join(filename);
+    let path = std::path::Path::new(coverage_path).join(filename);
 
     let file = File::create(path)?;
     let mut writer = BufWriter::new(file);
@@ -265,7 +269,7 @@ fn test_coverage_map_creation_data_files() {
     let tag = 123_u64;
 
     let bitmap = BitVec::from_elem(1024, false);
-    assert!(dump_emu_coverage_to_file(tag, &bitmap).is_ok());
+    assert!(dump_emu_coverage_to_file("/tmp", tag, &bitmap).is_ok());
 
     let paths = get_bitvec_paths("/tmp").unwrap();
 
