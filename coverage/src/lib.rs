@@ -12,6 +12,10 @@ use std::hash::Hasher;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 
+mod analyzer;
+
+pub use analyzer::{extract_function_info, FunctionInfo};
+
 pub struct CoverageMap {
     pub map: HashMap<u64, BitVec>,
 }
@@ -45,6 +49,21 @@ pub fn get_entry_from_path(path: &PathBuf) -> CoverageMapEntry {
         .unwrap();
     let bitmap = read_bitvec_from_file(path).unwrap();
     CoverageMapEntry(tag, bitmap)
+}
+
+pub fn uncovered_function_names(info: Vec<FunctionInfo>, bitmap: &BitVec) -> Vec<String> {
+    // Filter functions that have not been fully covered based on the bitmap.
+    let uncovered_function_names: Vec<String> = info
+        .iter()
+        .filter(|function| {
+            !function
+                .pc_range()
+                .all(|pc| bitmap.get(pc).unwrap_or(false))
+        })
+        .map(|function| function.name.clone()) // Extract function names
+        .collect();
+
+    uncovered_function_names
 }
 
 pub fn dump_emu_coverage_to_file(
