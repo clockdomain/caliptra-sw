@@ -1,11 +1,14 @@
 // Licensed under the Apache-2.0 license
+mod disasm;
 
 use anyhow::Context;
 use bit_vec::BitVec;
 use caliptra_builder::{build_firmware_elf, FwId, SymbolType};
-use disasm::FunctionInfo;
+pub use disasm::{
+    collect_instructions_from_objdump_output, parse_objdump_output, FunctionInfo, Instruction,
+};
 use elf::endian::AnyEndian;
-use elf::{parse, ElfBytes};
+use elf::ElfBytes;
 use std::collections::hash_map::{DefaultHasher, Entry};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
@@ -13,10 +16,6 @@ use std::hash::Hasher;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-
-use crate::disasm::parse_objdump_output;
-
-mod disasm;
 
 pub const CPTRA_COVERAGE_PATH: &str = "CPTRA_COVERAGE_PATH";
 
@@ -96,7 +95,6 @@ pub fn dump_emu_coverage_to_file(
     writer.flush()?;
     Ok(())
 }
-
 pub fn uncovered_functions<'a>(elf_bytes: &'a [u8], bitmap: &'a BitVec) -> std::io::Result<()> {
     let symbols = caliptra_builder::elf_symbols(elf_bytes)?;
 
@@ -247,9 +245,9 @@ pub fn parse_trace_file(trace_file_path: &str) -> HashSet<u32> {
     unique_pcs
 }
 
-pub fn invoke_objdump_and_parse(binary_path: &str) -> std::io::Result<Vec<FunctionInfo>> {
+pub fn invoke_objdump_and_parse(binary_path: &str) -> anyhow::Result<Vec<Instruction>> {
     let output = invoke_objdump(binary_path)?;
-    parse_objdump_output(&output)
+    collect_instructions_from_objdump_output(&output)
 }
 
 pub mod calculator {
@@ -279,19 +277,31 @@ pub mod calculator {
         hit
     }
 }
+pub fn partially_covered_functions<'a>(
+    elf_bytes: &'a [u8],
+    bitmap: &'a BitVec,
+) -> std::io::Result<Vec<FunctionInfo>> {
+    let symbols = caliptra_builder::elf_symbols(elf_bytes)?;
 
-fn display_uncovered_instructions(coverage_map: &CoverageMap, function_info: &[FunctionInfo]) {
-    for function in function_info {
-        let mut pc_range = function.address.parse::<u32>().unwrap()
-            ..function.address.parse::<u32>().unwrap() + function.size as u32;
-        if !pc_range.any(|pc| coverage_map.map.get(&pc).unwrap_or(&BitVec::new()).any()) {
-            println!(
-                "not covered : (NAME:{})  (start:{}) (size:{})",
-                function.function_name, function.address, function.size
-            );
-        }
+    let filter = symbols
+        .iter()
+        .filter(|sym| sym.ty == SymbolType::Func)
+        .filter(|function| {
+            let mut pc_range = function.value..function.value + function.size;
+            pc_range.any(|pc| bitmap.get(pc as usize).unwrap_or(false))
+        });
+    let mut function_info: Vec<FunctionInfo> = Vec::new();
+    for f in filter {
+        function_info.push(FunctionInfo {
+            address: f.value as usize,
+            function_name: f.name.to_string(),
+            size: f.size as usize,
+        });
     }
+
+    Ok(function_info)
 }
+
 #[test]
 pub fn test_objdump_parser() {
     // Include test data

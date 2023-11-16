@@ -10,6 +10,31 @@ use caliptra_coverage::CPTRA_COVERAGE_PATH;
 use caliptra_builder::firmware::ROM_WITH_UART;
 use caliptra_coverage::get_tag_from_fw_id;
 use caliptra_coverage::uncovered_functions;
+use caliptra_coverage::FunctionInfo;
+use caliptra_coverage::Instruction;
+
+pub fn report_uncovered_instructions_per_function(
+    partially_covered_functions: &[FunctionInfo],
+    instructions: &[Instruction],
+) {
+    for function in partially_covered_functions {
+        let start_address = function.address;
+        let end_address = start_address + function.size;
+
+        // Filter instructions for the current function
+        let uncovered_instructions = instructions
+            .iter()
+            .filter(|instruction| {
+                instruction.address() >= start_address && instruction.address() < end_address
+            })
+            .collect::<Vec<_>>();
+        // Print the report
+        println!(
+            "Function: {} (start: {}, size: {}), Uncovered Instructions: {:?}",
+            function.function_name, start_address, function.size, uncovered_instructions
+        );
+    }
+}
 
 fn main() -> std::io::Result<()> {
     let cov_path = std::env::var(CPTRA_COVERAGE_PATH).unwrap_or_else(|_| "".into());
