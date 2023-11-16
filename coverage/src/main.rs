@@ -1,4 +1,4 @@
-// Licensed under the Apache-2.0 license
+// Licensed under the Apache-2.0 license 
 
 use caliptra_builder::build_firmware_elf;
 use caliptra_coverage::calculator;
