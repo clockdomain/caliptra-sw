@@ -3,17 +3,39 @@
 use anyhow::Context;
 use bit_vec::BitVec;
 use caliptra_builder::{build_firmware_elf, FwId, SymbolType};
+use disasm::FunctionInfo;
 use elf::endian::AnyEndian;
-use elf::ElfBytes;
+use elf::{parse, ElfBytes};
 use std::collections::hash_map::{DefaultHasher, Entry};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::hash::Hasher;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use crate::disasm::parse_objdump_output;
+
+mod disasm;
 
 pub const CPTRA_COVERAGE_PATH: &str = "CPTRA_COVERAGE_PATH";
 
+pub fn invoke_objdump(binary_path: &str) -> std::io::Result<Vec<u8>> {
+    let output = Command::new("objdump")
+        .arg("-C")
+        .arg("-d")
+        .arg(binary_path)
+        .output()?;
+
+    if !output.status.success() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Failed to run objdump: {:?}", output),
+        ));
+    }
+
+    Ok(output.stdout)
+}
 pub struct CoverageMap {
     pub map: HashMap<u64, BitVec>,
 }
@@ -225,6 +247,11 @@ pub fn parse_trace_file(trace_file_path: &str) -> HashSet<u32> {
     unique_pcs
 }
 
+pub fn invoke_objdump_and_parse(binary_path: &str) -> std::io::Result<Vec<FunctionInfo>> {
+    let output = invoke_objdump(binary_path)?;
+    parse_objdump_output(&output)
+}
+
 pub mod calculator {
     use bit_vec::BitVec;
 
@@ -251,6 +278,25 @@ pub mod calculator {
         }
         hit
     }
+}
+
+fn display_uncovered_instructions(coverage_map: &CoverageMap, function_info: &[FunctionInfo]) {
+    for function in function_info {
+        let mut pc_range = function.address.parse::<u32>().unwrap()
+            ..function.address.parse::<u32>().unwrap() + function.size as u32;
+        if !pc_range.any(|pc| coverage_map.map.get(&pc).unwrap_or(&BitVec::new()).any()) {
+            println!(
+                "not covered : (NAME:{})  (start:{}) (size:{})",
+                function.function_name, function.address, function.size
+            );
+        }
+    }
+}
+#[test]
+pub fn test_objdump_parser() {
+    // Include test data
+    const OBJDUMP_OUTPUT: &[u8] = include_bytes!("test_data/objdump_output.txt");
+    parse_objdump_output(OBJDUMP_OUTPUT).unwrap();
 }
 
 #[test]
