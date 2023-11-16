@@ -301,7 +301,7 @@ pub fn partially_covered_functions<'a>(
 
     Ok(function_info)
 }
-
+ 
 #[test]
 pub fn test_objdump_parser() {
     // Include test data
