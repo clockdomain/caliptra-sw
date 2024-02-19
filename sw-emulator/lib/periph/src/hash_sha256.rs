@@ -177,11 +177,14 @@ impl HashSha256 {
             self.state_machine.context.sha256.hash(self.hash.data_mut());
 
             // Update Ready and Valid status bits
-            self.state_machine
-                .context
-                .status
-                .reg
-                .modify(Status::READY::SET + Status::VALID::SET);
+            //           self.state_machine
+            //               .context
+            //               .status
+            //              .reg
+            //               .modify(Status::READY::SET + Status::VALID::SET);
+
+            // Send timer expired event to the state machine
+            let _ = self.state_machine.process_event(Events::TimerExpired);
         }
     }
 
@@ -223,15 +226,11 @@ pub struct CtlRegisterData {
 
 statemachine! {
     transitions: {
-        //WntntzDisabled + WriteCtl(WntntzParamValue) [wntnz_is_enabled] = WntntzIdle,
         *WntntzDisabled + WriteCtlEvent(CtlRegisterData) [wntnz_is_enabled] = WntntzIdle,
-        WntntzDisabled + WriteBlock(BlockData) [always_ok]/hash_the_block = WntntzDisabled,
+        WntntzDisabled + WriteBlock(BlockData) /hash_the_block = WntntzDisabled,
+        WntntzDisabled + TimerExpired [always_update_status] / update_status = WntntzDisabled,
         // If this is the first block after winterntiz enablement, then transition to WntnzFirst
-        WntntzIdle + WritePrefix(PrefixValue) [wntnz_can_start] = WntnzFirst,
-//        First + WriteBlock = Others,
-//        First + WriteStatus = Others,
-//        Others + WriteBlock = Others,
-//        Others + WriteStatus = Idle
+        WntntzIdle + WriteBlock(BlockData) [wntnz_can_start]/hash_the_block = WntnzFirst,
 
     }
 }
@@ -306,20 +305,20 @@ impl StateMachineContext for Context {
         }
         Err(())
     }
-    fn wntnz_can_start(&mut self, first_block: &PrefixValue) -> Result<(), ()> {
+    fn wntnz_can_start(&mut self, first_block: &BlockData) -> Result<(), ()> {
         self.wntz_j_reg = first_block.0[22];
-        self.wntz_prefix = first_block.0;
+        self.wntz_prefix = first_block.0[0..22].try_into().unwrap();
 
         if self.wntz_j_reg < self.wntz_iter as u8 {
             return Ok(());
         }
         Err(())
     }
-    fn always_ok(&mut self, event_data: &BlockData) -> Result<(), ()> {
+    fn always_update_status(&mut self) -> Result<(), ()> {
         Ok(())
     }
 
-    fn hash_the_block(&mut self, event_data: &BlockData) -> () {
+    fn hash_the_block(&mut self, event_data: &BlockData) {
         // Copy block data to the block register.
         self.block.data_mut().copy_from_slice(&event_data.0);
         if self.control.reg.is_set(Control::INIT) || self.control.reg.is_set(Control::NEXT) {
@@ -362,6 +361,13 @@ impl StateMachineContext for Context {
         if self.control.reg.is_set(Control::ZEROIZE) {
             self.zeroize();
         }
+    }
+
+    fn update_status(&mut self) {
+        // Update Ready and Valid status bits
+        self.status
+            .reg
+            .modify(Status::READY::SET + Status::VALID::SET);
     }
 }
 
