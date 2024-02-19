@@ -327,9 +327,9 @@ impl Lms {
 
         //  Q = message_digest (argument to this function, pre-calculated using hash_message).
         //  I = lms_identifier
-        //  s = signature. 
-        //  The acceleration engine will iterate range(j,a) 
-        //  if a is placed at offset 22 of the hash block. 
+        //  s = signature.
+        //  The acceleration engine will iterate range(j,a)
+        //  if a is placed at offset 22 of the hash block.
         //  Q = H(I || u32str(q) || u16str(D_MESG) || C || message)
         //  for ( i = 0; i < p; i = i + 1 ) {
         //      a = coef(Q || Cksm(Q), i, w)
@@ -339,8 +339,8 @@ impl Lms {
         //      }
         //      z[i] = tmp
         //  }
-        // 
-        // 
+        //
+        //
 
         let mut message_hash_with_checksum = [0u8; 34]; // 2 extra bytes for the checksum. needs to be N+2
 
@@ -371,7 +371,7 @@ impl Lms {
                 // for j in a..upper {
                 let mut digest = Array4x8::default();
                 let mut hasher = sha256_driver.digest_init()?;
-                hash_block[22] = a; //j;
+                hash_block[22] = a;
                 let mut i = 23;
                 for val in tmp.0.iter().take(N) {
                     hash_block[i..i + 4].clone_from_slice(&val.to_be_bytes());
